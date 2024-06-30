@@ -49,7 +49,21 @@ fn test_parse_price() {
     assert_eq!(parse_price(&[0, 0, 1, 0, 1]), 1.0001);
 }
 
-fn parse_amount(chunk: &[u8]) {}
+fn parse_amount(chunk: &[u8]) -> usize {
+    let v1 = parse_bcd(chunk[0]) as usize;
+    let v2 = parse_bcd(chunk[1]) as usize;
+    let v3 = parse_bcd(chunk[2]) as usize;
+    let v4 = parse_bcd(chunk[3]) as usize;
+    v1 * 1000000 + v2 * 10000 + v3 * 100 + v4
+}
+
+#[test]
+fn test_parse_amount() {
+    assert_eq!(parse_amount(&[0b00000000, 0b00000000, 0b00000000, 0b00010000]), 10);
+    assert_eq!(parse_amount(&[0b00000000, 0b00000000, 0b00010001, 0b00010000]), 1110);
+    assert_eq!(parse_amount(&[0b00000000, 0b10010000, 0b00010001, 0b00010000]), 901110);
+    assert_eq!(parse_amount(&[0, 1, 0, 1]), 10001);
+}
 
 fn parse_3dot3(chunk: &[u8]) -> (bool, u8, u8, bool) {
     let v = chunk[22];
