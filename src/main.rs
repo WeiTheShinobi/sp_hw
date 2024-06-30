@@ -31,27 +31,43 @@ fn test_parse_chunk() {
     parse_chunk(testcase)
 }
 
+fn parse_price(chunk: &[u8]) -> f32 {
+    let v1 = parse_bcd(chunk[0]) as f32;
+    let v2 = parse_bcd(chunk[1]) as f32;
+    let v3 = parse_bcd(chunk[2]) as f32;
+    let v4 = parse_bcd(chunk[3]) as f32;
+    let v5 = parse_bcd(chunk[4]) as f32;
+
+    v1 * 10000f32 + v2 * 100f32 + v3 + v4 * 0.01 + v5 * 0.0001
+}
+
+#[test]
+fn test_parse_price() {
+    assert_eq!(parse_price(&[0b001, 0b00000000, 0b00000000, 0b00000000, 0b00000000]), 10000f32);
+    assert_eq!(parse_price(&[0b001, 0b00010001, 0b00010001, 0b00010001, 0b00010001]), 11111.1111);
+    assert_eq!(parse_price(&[0b001, 0b00000001, 0b10010000, 0b00000001, 0b00000000]), 10190.01);
+    assert_eq!(parse_price(&[0, 0, 1, 0, 1]), 1.0001);
+}
+
+fn parse_amount(chunk: &[u8]) {}
+
 fn parse_3dot3(chunk: &[u8]) -> (bool, u8, u8, bool) {
     let v = chunk[22];
     let have_deal_price = (v >> 7) & 1 == 1;
-    let buy_count = (v >> 4) & 0b111;
-    let sell_count = (v >> 1) & 0b111;
+    let buy_price_count = (v >> 4) & 0b111;
+    let sell_price_count = (v >> 1) & 0b111;
     let have_best_5 = v & 1 == 1;
-    println!("{}, {}, {}, {}", have_deal_price, buy_count, sell_count, have_best_5);
+    println!("{}, {}, {}, {}", have_deal_price, buy_price_count, sell_price_count, have_best_5);
 
-    (have_deal_price, buy_count, sell_count, have_best_5)
+    (have_deal_price, buy_price_count, sell_price_count, have_best_5)
 }
 
 #[test]
 fn test_parse_3dot3() {
-    let testcase = &[0b10000001u8; 23];
-    assert_eq!(parse_3dot3(testcase), (true, 0, 0, true));
-    let testcase = &[0b10010001u8; 23];
-    assert_eq!(parse_3dot3(testcase), (true, 1, 0, true));
-    let testcase = &[0b11011011u8; 23];
-    assert_eq!(parse_3dot3(testcase), (true, 5, 5, true));
-    let testcase = &[0b10010101u8; 23];
-    assert_eq!(parse_3dot3(testcase), (true, 1, 2, true));
+    assert_eq!(parse_3dot3(&[0b10000001u8; 23]), (true, 0, 0, true));
+    assert_eq!(parse_3dot3(&[0b10010001u8; 23]), (true, 1, 0, true));
+    assert_eq!(parse_3dot3(&[0b11011011u8; 23]), (true, 5, 5, true));
+    assert_eq!(parse_3dot3(&[0b10010101u8; 23]), (true, 1, 2, true));
 }
 
 fn parse_msg_len(v: &[u8]) -> usize {
