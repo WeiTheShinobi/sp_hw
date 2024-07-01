@@ -8,18 +8,55 @@ fn main() -> io::Result<()> {
     let mut file = File::open(FILE_NAME)?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
-    println!("{:?}", &buffer[..122]);
-    println!("{:?}", parse_msg_len(&buffer[..122]));
+
+    let mut result = Vec::new();
+    if let Some(d) = parse_chunk(&buffer) {
+        result.push(d);
+    }
+
+    println!("{:?}", result);
 
     Ok(())
 }
 
-struct data(f32, f32);
+#[derive(Debug)]
+struct Data(String, f32, f32, u64);
 
-fn parse_chunk(chunk: &[u8]) {
-    let code = chunk[10..16].iter().map(|&c| c as char).collect::<String>();
-    let (have_deal_price, buy_price_count, sell_price_count, have_best_5) = parse_3dot3(&chunk);
-    println!("{:?}", code);
+
+const CODE_START_INDEX: usize = 10;
+const CODE_END_INDEX: usize = 16;
+const TIME_START_INDEX: usize = 16;
+const TIME_END_INDEX: usize = 22;
+const PRICE_START_INDEX: usize = 29;
+const DOC33_INDEX: usize = 22;
+const DOC37_LEN: usize = 9;
+const DOC37_PRICE_LEN: usize = 5;
+
+
+fn parse_chunk(chunk: &[u8]) -> Option<Data> {
+    let code = chunk[CODE_START_INDEX..CODE_END_INDEX].iter().map(|&c| c as char).collect::<String>();
+    let time = parse_time(&chunk[TIME_START_INDEX..TIME_END_INDEX]);
+    if time == 0 {
+        return None;
+    }
+    let (have_deal_price, buy_price_count, sell_price_count, _) = parse_3dot3(chunk[DOC33_INDEX]);
+
+    let mut index = PRICE_START_INDEX + if have_deal_price { DOC37_LEN } else { 0 };
+    let bid_price = 0f32 + if buy_price_count > 0 {
+        parse_price(&chunk[index..index + DOC37_PRICE_LEN])
+    } else {
+        0f32
+    };
+
+    index += buy_price_count as usize * 9;
+
+    let ask_price = 0f32 + if sell_price_count > 0 {
+        parse_price(&chunk[index..index + DOC37_PRICE_LEN])
+    } else {
+        0f32
+    };
+
+    Some(Data(code, bid_price, ask_price, time))
 }
 
 #[test]
@@ -31,7 +68,8 @@ fn test_parse_chunk() {
         1, 70, 0, 0, 64, 115, 0, 0, 0, 1, 72, 0, 0, 64, 118, 0, 0, 0, 0, 1, 0, 0, 64, 119,
         0, 0, 0, 0, 5, 167, 13, 10];
 
-    parse_chunk(testcase)
+    let result = parse_chunk(testcase);
+    println!("parse_chunk: {:?}", result)
 }
 
 fn parse_time(chunk: &[u8]) -> u64 {
@@ -86,8 +124,7 @@ fn test_parse_amount() {
     assert_eq!(parse_amount(&[0x00, 0x01, 0x00, 0x01]), 10001);
 }
 
-fn parse_3dot3(chunk: &[u8]) -> (bool, u8, u8, bool) {
-    let v = chunk[22];
+fn parse_3dot3(v: u8) -> (bool, u8, u8, bool) {
     let have_deal_price = (v >> 7) & 1 == 1;
     let buy_price_count = (v >> 4) & 0b111;
     let sell_price_count = (v >> 1) & 0b111;
@@ -99,14 +136,14 @@ fn parse_3dot3(chunk: &[u8]) -> (bool, u8, u8, bool) {
 
 #[test]
 fn test_parse_3dot3() {
-    assert_eq!(parse_3dot3(&[0b10000001u8; 23]), (true, 0, 0, true));
-    assert_eq!(parse_3dot3(&[0b10010001u8; 23]), (true, 1, 0, true));
-    assert_eq!(parse_3dot3(&[0b11011011u8; 23]), (true, 5, 5, true));
-    assert_eq!(parse_3dot3(&[0b10010101u8; 23]), (true, 1, 2, true));
+    assert_eq!(parse_3dot3(0b10000001u8), (true, 0, 0, true));
+    assert_eq!(parse_3dot3(0b10010001u8), (true, 1, 0, true));
+    assert_eq!(parse_3dot3(0b11011011u8), (true, 5, 5, true));
+    assert_eq!(parse_3dot3(0b10010101u8), (true, 1, 2, true));
 }
 
 fn parse_msg_len(v: &[u8]) -> usize {
-    (parse_bcd(v[1]) as usize) * 100 + parse_bcd(v[2]) as usize
+    (parse_bcd(v[0]) as usize) * 100 + parse_bcd(v[1]) as usize
 }
 
 fn parse_bcd(v: u8) -> u8 {
@@ -123,8 +160,8 @@ fn test_parse_bcd() {
 
 #[test]
 fn test_parse_msg_len() {
-    assert_eq!(parse_msg_len(&[0, 0x12, 0x93]), 1293);
-    assert_eq!(parse_msg_len(&[0, 0x01, 0x22]), 122);
-    assert_eq!(parse_msg_len(&[0, 0x10, 0x01]), 1001);
-    assert_eq!(parse_msg_len(&[0, 0x00, 0x01]), 1);
+    assert_eq!(parse_msg_len(&[0x12, 0x93]), 1293);
+    assert_eq!(parse_msg_len(&[0x01, 0x22]), 122);
+    assert_eq!(parse_msg_len(&[0x10, 0x01]), 1001);
+    assert_eq!(parse_msg_len(&[0x00, 0x01]), 1);
 }
