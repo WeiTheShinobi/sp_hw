@@ -14,8 +14,11 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
+struct data(f32, f32);
+
 fn parse_chunk(chunk: &[u8]) {
     let code = chunk[10..16].iter().map(|&c| c as char).collect::<String>();
+    let (have_deal_price, buy_price_count, sell_price_count, have_best_5) = parse_3dot3(&chunk);
     println!("{:?}", code);
 }
 
@@ -31,6 +34,24 @@ fn test_parse_chunk() {
     parse_chunk(testcase)
 }
 
+fn parse_time(chunk: &[u8]) -> u64 {
+    let hour = parse_bcd(chunk[0]) as u32;
+    let minute = parse_bcd(chunk[1]) as u32;
+    let second = parse_bcd(chunk[2]) as u32;
+
+    let micro_b1 = parse_bcd(chunk[3]) as u32;
+    let micro_b2 = parse_bcd(chunk[4]) as u32;
+    let micro_b3 = parse_bcd(chunk[5]) as u32;
+    let micro = micro_b1 * 10000 + micro_b2 * 100 + micro_b3;
+
+    ((hour * 10000 + minute * 100 + second) as u64) * 1000000 + micro as u64
+}
+
+#[test]
+fn test_parse_time() {
+    assert_eq!(parse_time(&[0x23, 0x59, 0x59, 0x51, 0x01, 0x15]), 235959510115);
+}
+
 fn parse_price(chunk: &[u8]) -> f32 {
     let v1 = parse_bcd(chunk[0]) as f32;
     let v2 = parse_bcd(chunk[1]) as f32;
@@ -43,10 +64,10 @@ fn parse_price(chunk: &[u8]) -> f32 {
 
 #[test]
 fn test_parse_price() {
-    assert_eq!(parse_price(&[0b001, 0b00000000, 0b00000000, 0b00000000, 0b00000000]), 10000f32);
-    assert_eq!(parse_price(&[0b001, 0b00010001, 0b00010001, 0b00010001, 0b00010001]), 11111.1111);
-    assert_eq!(parse_price(&[0b001, 0b00000001, 0b10010000, 0b00000001, 0b00000000]), 10190.01);
-    assert_eq!(parse_price(&[0, 0, 1, 0, 1]), 1.0001);
+    assert_eq!(parse_price(&[0x01, 0x00, 0x0, 0x0, 0x0]), 10000f32);
+    assert_eq!(parse_price(&[0x01, 0x11, 0x11, 0x11, 0x11]), 11111.1111);
+    assert_eq!(parse_price(&[0x01, 0x01, 0x90, 0x01, 0x00]), 10190.01);
+    assert_eq!(parse_price(&[0x00, 0x00, 0x01, 0x00, 0x01]), 1.0001);
 }
 
 fn parse_amount(chunk: &[u8]) -> usize {
@@ -59,10 +80,10 @@ fn parse_amount(chunk: &[u8]) -> usize {
 
 #[test]
 fn test_parse_amount() {
-    assert_eq!(parse_amount(&[0b00000000, 0b00000000, 0b00000000, 0b00010000]), 10);
-    assert_eq!(parse_amount(&[0b00000000, 0b00000000, 0b00010001, 0b00010000]), 1110);
-    assert_eq!(parse_amount(&[0b00000000, 0b10010000, 0b00010001, 0b00010000]), 901110);
-    assert_eq!(parse_amount(&[0, 1, 0, 1]), 10001);
+    assert_eq!(parse_amount(&[0x00, 0x00, 0x00, 0x10]), 10);
+    assert_eq!(parse_amount(&[0x00, 0x00, 0x11, 0x10]), 1110);
+    assert_eq!(parse_amount(&[0x00, 0x90, 0x11, 0x10]), 901110);
+    assert_eq!(parse_amount(&[0x00, 0x01, 0x00, 0x01]), 10001);
 }
 
 fn parse_3dot3(chunk: &[u8]) -> (bool, u8, u8, bool) {
@@ -94,16 +115,16 @@ fn parse_bcd(v: u8) -> u8 {
 
 #[test]
 fn test_parse_bcd() {
-    assert_eq!(parse_bcd(0b00010010), 12);
-    assert_eq!(parse_bcd(0b10010011), 93);
-    assert_eq!(parse_bcd(0b00000001), 1);
-    assert_eq!(parse_bcd(0b00010000), 10);
+    assert_eq!(parse_bcd(0x12), 12);
+    assert_eq!(parse_bcd(0x93), 93);
+    assert_eq!(parse_bcd(0x01), 1);
+    assert_eq!(parse_bcd(0x10), 10);
 }
 
 #[test]
 fn test_parse_msg_len() {
-    assert_eq!(parse_msg_len(&[0, 0b00010010, 0b10010011]), 1293);
-    assert_eq!(parse_msg_len(&[0, 0b00000001, 0b00100010]), 122);
-    assert_eq!(parse_msg_len(&[0, 0b00010000, 0b00000001]), 1001);
-    assert_eq!(parse_msg_len(&[0, 0b00000000, 0b00000001]), 1);
+    assert_eq!(parse_msg_len(&[0, 0x12, 0x93]), 1293);
+    assert_eq!(parse_msg_len(&[0, 0x01, 0x22]), 122);
+    assert_eq!(parse_msg_len(&[0, 0x10, 0x01]), 1001);
+    assert_eq!(parse_msg_len(&[0, 0x00, 0x01]), 1);
 }
