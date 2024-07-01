@@ -10,16 +10,24 @@ fn main() -> io::Result<()> {
     file.read_to_end(&mut buffer)?;
 
     let mut result = Vec::new();
-    if let Some(d) = parse_chunk(&buffer) {
-        result.push(d);
+    let mut i = 0usize;
+
+    while i < buffer.len() {
+        let len = parse_msg_len(&buffer[i+1..=i+2]);
+        let chunk = &buffer[i..i+len];
+        if let Some(d) = parse_chunk(chunk) {
+            result.push(d);
+        }
+        i += len;
     }
 
-    println!("{:?}", result);
+    result.iter().for_each(|d| println!("{:?}", d));
 
     Ok(())
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Data(String, f32, f32, u64);
 
 
@@ -129,7 +137,6 @@ fn parse_3dot3(v: u8) -> (bool, u8, u8, bool) {
     let buy_price_count = (v >> 4) & 0b111;
     let sell_price_count = (v >> 1) & 0b111;
     let have_best_5 = v & 1 == 1;
-    println!("{}, {}, {}, {}", have_deal_price, buy_price_count, sell_price_count, have_best_5);
 
     (have_deal_price, buy_price_count, sell_price_count, have_best_5)
 }
