@@ -13,8 +13,8 @@ fn main() -> io::Result<()> {
     let mut i = 0usize;
 
     while i < buffer.len() {
-        let len = parse_msg_len(&buffer[i+1..=i+2]);
-        let chunk = &buffer[i..i+len];
+        let len = parse_msg_len(&buffer[i + 1..=i + 2]);
+        let chunk = &buffer[i..i + len];
         if let Some(d) = parse_chunk(chunk) {
             result.push(d);
         }
@@ -28,7 +28,13 @@ fn main() -> io::Result<()> {
 
 #[derive(Debug)]
 #[allow(dead_code)]
-struct Data(String, f32, f32, u64);
+struct Data {
+    code: String,
+    bid_price: f32,
+    ask_price: f32,
+    // HHMMSSnnnnnn 6nano second
+    time: u64,
+}
 
 
 const CODE_START_INDEX: usize = 10;
@@ -64,7 +70,12 @@ fn parse_chunk(chunk: &[u8]) -> Option<Data> {
         0f32
     };
 
-    Some(Data(code, bid_price, ask_price, time))
+    Some(Data {
+        code,
+        bid_price,
+        ask_price,
+        time,
+    })
 }
 
 #[test]
