@@ -36,9 +36,9 @@ const CODE_END_INDEX: usize = 16;
 const TIME_START_INDEX: usize = 16;
 const TIME_END_INDEX: usize = 22;
 const PRICE_START_INDEX: usize = 29;
-const DOC33_INDEX: usize = 22;
-const DOC37_LEN: usize = 9;
-const DOC37_PRICE_LEN: usize = 5;
+const DOC3_3_INDEX: usize = 22;
+const DOC3_7_LEN: usize = 9;
+const DOC3_7_PRICE_LEN: usize = 5;
 
 
 fn parse_chunk(chunk: &[u8]) -> Option<Data> {
@@ -47,19 +47,19 @@ fn parse_chunk(chunk: &[u8]) -> Option<Data> {
     if time == 0 {
         return None;
     }
-    let (have_deal_price, buy_price_count, sell_price_count, _) = parse_3dot3(chunk[DOC33_INDEX]);
+    let (have_deal_price, buy_price_count, sell_price_count, _) = parse_3dot3(chunk[DOC3_3_INDEX]);
 
-    let mut index = PRICE_START_INDEX + if have_deal_price { DOC37_LEN } else { 0 };
+    let mut index = PRICE_START_INDEX + if have_deal_price { DOC3_7_LEN } else { 0 };
     let bid_price = 0f32 + if buy_price_count > 0 {
-        parse_price(&chunk[index..index + DOC37_PRICE_LEN])
+        parse_price(&chunk[index..index + DOC3_7_PRICE_LEN])
     } else {
         0f32
     };
 
-    index += buy_price_count as usize * 9;
+    index += buy_price_count as usize * DOC3_7_LEN;
 
     let ask_price = 0f32 + if sell_price_count > 0 {
-        parse_price(&chunk[index..index + DOC37_PRICE_LEN])
+        parse_price(&chunk[index..index + DOC3_7_PRICE_LEN])
     } else {
         0f32
     };
