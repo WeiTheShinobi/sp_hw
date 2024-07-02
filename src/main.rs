@@ -1,3 +1,7 @@
+extern crate core;
+
+mod bcd;
+
 use std::fs::File;
 use std::io;
 use std::io::Read;
@@ -22,7 +26,6 @@ fn main() -> io::Result<()> {
     }
 
     result.iter().for_each(|d| println!("{:?}", d));
-
     Ok(())
 }
 
@@ -33,7 +36,7 @@ struct Data {
     bid_price: f32,
     ask_price: f32,
     // HHMMSSnnnnnn 6nano second
-    time: u64,
+    time: usize,
 }
 
 
@@ -53,7 +56,7 @@ fn parse_chunk(chunk: &[u8]) -> Option<Data> {
     if time == 0 {
         return None;
     }
-    let (have_deal_price, buy_price_count, sell_price_count, _) = parse_3dot3(chunk[DOC3_3_INDEX]);
+    let (have_deal_price, buy_price_count, sell_price_count, _) = parse_3_3(chunk[DOC3_3_INDEX]);
 
     let mut index = PRICE_START_INDEX + if have_deal_price { DOC3_7_LEN } else { 0 };
     let bid_price = 0f32 + if buy_price_count > 0 {
@@ -91,17 +94,8 @@ fn test_parse_chunk() {
     println!("parse_chunk: {:?}", result)
 }
 
-fn parse_time(chunk: &[u8]) -> u64 {
-    let hour = parse_bcd(chunk[0]) as u32;
-    let minute = parse_bcd(chunk[1]) as u32;
-    let second = parse_bcd(chunk[2]) as u32;
-
-    let micro_b1 = parse_bcd(chunk[3]) as u32;
-    let micro_b2 = parse_bcd(chunk[4]) as u32;
-    let micro_b3 = parse_bcd(chunk[5]) as u32;
-    let micro = micro_b1 * 10000 + micro_b2 * 100 + micro_b3;
-
-    ((hour * 10000 + minute * 100 + second) as u64) * 1000000 + micro as u64
+fn parse_time(chunk: &[u8]) -> usize {
+    bcd::to_usize(&chunk)
 }
 
 #[test]
@@ -110,13 +104,7 @@ fn test_parse_time() {
 }
 
 fn parse_price(chunk: &[u8]) -> f32 {
-    let v1 = parse_bcd(chunk[0]) as f32;
-    let v2 = parse_bcd(chunk[1]) as f32;
-    let v3 = parse_bcd(chunk[2]) as f32;
-    let v4 = parse_bcd(chunk[3]) as f32;
-    let v5 = parse_bcd(chunk[4]) as f32;
-
-    v1 * 10000f32 + v2 * 100f32 + v3 + v4 * 0.01 + v5 * 0.0001
+    bcd::to_f32(chunk, 3)
 }
 
 #[test]
@@ -128,11 +116,7 @@ fn test_parse_price() {
 }
 
 fn parse_amount(chunk: &[u8]) -> usize {
-    let v1 = parse_bcd(chunk[0]) as usize;
-    let v2 = parse_bcd(chunk[1]) as usize;
-    let v3 = parse_bcd(chunk[2]) as usize;
-    let v4 = parse_bcd(chunk[3]) as usize;
-    v1 * 1000000 + v2 * 10000 + v3 * 100 + v4
+    bcd::to_usize(chunk)
 }
 
 #[test]
@@ -143,7 +127,7 @@ fn test_parse_amount() {
     assert_eq!(parse_amount(&[0x00, 0x01, 0x00, 0x01]), 10001);
 }
 
-fn parse_3dot3(v: u8) -> (bool, u8, u8, bool) {
+fn parse_3_3(v: u8) -> (bool, u8, u8, bool) {
     let have_deal_price = (v >> 7) & 1 == 1;
     let buy_price_count = (v >> 4) & 0b111;
     let sell_price_count = (v >> 1) & 0b111;
@@ -154,10 +138,10 @@ fn parse_3dot3(v: u8) -> (bool, u8, u8, bool) {
 
 #[test]
 fn test_parse_3dot3() {
-    assert_eq!(parse_3dot3(0b10000001u8), (true, 0, 0, true));
-    assert_eq!(parse_3dot3(0b10010001u8), (true, 1, 0, true));
-    assert_eq!(parse_3dot3(0b11011011u8), (true, 5, 5, true));
-    assert_eq!(parse_3dot3(0b10010101u8), (true, 1, 2, true));
+    assert_eq!(parse_3_3(0b10000001u8), (true, 0, 0, true));
+    assert_eq!(parse_3_3(0b10010001u8), (true, 1, 0, true));
+    assert_eq!(parse_3_3(0b11011011u8), (true, 5, 5, true));
+    assert_eq!(parse_3_3(0b10010101u8), (true, 1, 2, true));
 }
 
 fn parse_msg_len(v: &[u8]) -> usize {
