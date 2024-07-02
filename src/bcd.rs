@@ -1,10 +1,10 @@
 #[derive(Debug, PartialEq)]
 pub struct Header {
-    len: u16,
-    business_type: u8,
-    format_code: u8,
-    format_version: u8,
-    number: usize,
+    pub len: u16,
+    pub business_type: u8,
+    pub format_code: u8,
+    pub format_version: u8,
+    pub number: usize,
 }
 
 pub fn parse_header(b: &[u8]) -> Header {
@@ -74,4 +74,12 @@ fn test_to_f32() {
     assert_eq!(to_f32(&[0x01, 0x01, 0x01], 1), 1.0101);
     assert_eq!(to_f32(&[0x11, 0x01, 0x00, 0x00, 0x01], 2), 1101.000001);
     assert_eq!(to_f32(&[0x00, 0x00, 0x01, 0x58, 0x43], 3), 1.5843);
+}
+
+#[test]
+fn test_parse() {
+    assert_eq!(parse(0x12), 12);
+    assert_eq!(parse(0x93), 93);
+    assert_eq!(parse(0x01), 1);
+    assert_eq!(parse(0x10), 10);
 }

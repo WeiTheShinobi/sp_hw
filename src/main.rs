@@ -1,5 +1,3 @@
-extern crate core;
-
 mod bcd;
 
 use std::fs::File;
@@ -17,7 +15,7 @@ fn main() -> io::Result<()> {
     let mut i = 0usize;
 
     while i < buffer.len() {
-        let len = parse_msg_len(&buffer[i + 1..=i + 2]);
+        let len = bcd::parse_header(&buffer[i..i + 10]).len as usize;
         let chunk = &buffer[i..i + len];
         if let Some(d) = parse_chunk(chunk) {
             result.push(d);
@@ -137,33 +135,9 @@ fn parse_3_3(v: u8) -> (bool, u8, u8, bool) {
 }
 
 #[test]
-fn test_parse_3dot3() {
-    assert_eq!(parse_3_3(0b10000001u8), (true, 0, 0, true));
-    assert_eq!(parse_3_3(0b10010001u8), (true, 1, 0, true));
-    assert_eq!(parse_3_3(0b11011011u8), (true, 5, 5, true));
-    assert_eq!(parse_3_3(0b10010101u8), (true, 1, 2, true));
-}
-
-fn parse_msg_len(v: &[u8]) -> usize {
-    (parse_bcd(v[0]) as usize) * 100 + parse_bcd(v[1]) as usize
-}
-
-fn parse_bcd(v: u8) -> u8 {
-    10 * (v >> 4) + (v & 0b00001111)
-}
-
-#[test]
-fn test_parse_bcd() {
-    assert_eq!(parse_bcd(0x12), 12);
-    assert_eq!(parse_bcd(0x93), 93);
-    assert_eq!(parse_bcd(0x01), 1);
-    assert_eq!(parse_bcd(0x10), 10);
-}
-
-#[test]
-fn test_parse_msg_len() {
-    assert_eq!(parse_msg_len(&[0x12, 0x93]), 1293);
-    assert_eq!(parse_msg_len(&[0x01, 0x22]), 122);
-    assert_eq!(parse_msg_len(&[0x10, 0x01]), 1001);
-    assert_eq!(parse_msg_len(&[0x00, 0x01]), 1);
+fn test_parse_3_3() {
+    assert_eq!(parse_3_3(0b10000001), (true, 0, 0, true));
+    assert_eq!(parse_3_3(0b10010001), (true, 1, 0, true));
+    assert_eq!(parse_3_3(0b11011011), (true, 5, 5, true));
+    assert_eq!(parse_3_3(0b10010101), (true, 1, 2, true));
 }
