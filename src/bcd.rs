@@ -7,20 +7,20 @@ pub struct Header {
     pub number: usize,
 }
 
-pub fn parse_header(b: &[u8]) -> Header {
+pub fn parse_header(data: &[u8]) -> Header {
     Header {
-        len: to_usize(&b[1..=2]) as u16,
-        business_type: parse(b[3]),
-        format_code: parse(b[4]),
-        format_version: parse(b[5]),
-        number: to_usize(&b[6..10]),
+        len: to_usize(&data[1..=2]) as u16,
+        business_type: parse(data[3]),
+        format_code: parse(data[4]),
+        format_version: parse(data[5]),
+        number: to_usize(&data[6..10]),
     }
 }
 
-pub fn to_usize(b: &[u8]) -> usize {
-    let n = (1..b.len()).fold(1usize, |acc, _| acc * 100);
+pub fn to_usize(data: &[u8]) -> usize {
+    let n = (1..data.len()).fold(1usize, |acc, _| acc * 100);
 
-    b.iter().fold((0usize, n), |(result, n), &x| {
+    data.iter().fold((0usize, n), |(result, n), &x| {
         (result + parse(x) as usize * n, n / 100)
     }).0
 }
