@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
     while i < buffer.len() {
         let len = bcd::parse_header(&buffer[i..i + 10]).len as usize;
         let chunk = &buffer[i..i + len];
-        if let Some(d) = parse_chunk(chunk) {
+        if let Some(d) = parse_6_6_body(chunk) {
             result.push(d);
         }
         i += len;
@@ -38,35 +38,33 @@ struct Data {
 }
 
 
-const CODE_START_INDEX: usize = 10;
-const CODE_END_INDEX: usize = 16;
-const TIME_START_INDEX: usize = 16;
-const TIME_END_INDEX: usize = 22;
+const STOCK_CODE_INDEX: (usize, usize) = (10, 16);
+const TIME_INDEX: (usize, usize) = (16, 22);
 const PRICE_START_INDEX: usize = 29;
 const DOC3_3_INDEX: usize = 22;
 const DOC3_7_LEN: usize = 9;
 const DOC3_7_PRICE_LEN: usize = 5;
 
 
-fn parse_chunk(chunk: &[u8]) -> Option<Data> {
-    let code = chunk[CODE_START_INDEX..CODE_END_INDEX].iter().map(|&c| c as char).collect::<String>();
-    let time = parse_time(&chunk[TIME_START_INDEX..TIME_END_INDEX]);
+fn parse_6_6_body(chunk: &[u8]) -> Option<Data> {
+    let code = chunk[STOCK_CODE_INDEX.0..STOCK_CODE_INDEX.1].iter().map(|&c| c as char).collect::<String>();
+    let time = bcd::to_usize(&chunk[TIME_INDEX.0..TIME_INDEX.1]);
     if time == 0 {
         return None;
     }
-    let (have_deal_price, buy_price_count, sell_price_count, _) = parse_3_3(chunk[DOC3_3_INDEX]);
+    let data_3_3 = parse_3_3(chunk[DOC3_3_INDEX]);
 
-    let mut index = PRICE_START_INDEX + if have_deal_price { DOC3_7_LEN } else { 0 };
-    let bid_price = 0f32 + if buy_price_count > 0 {
-        parse_price(&chunk[index..index + DOC3_7_PRICE_LEN])
+    let mut index = PRICE_START_INDEX + if data_3_3.have_deal_price { DOC3_7_LEN } else { 0 };
+    let bid_price = 0f32 + if data_3_3.buy_price_count > 0 {
+        bcd::to_f32(&chunk[index..index + DOC3_7_PRICE_LEN], 3)
     } else {
         0f32
     };
 
-    index += buy_price_count as usize * DOC3_7_LEN;
+    index += data_3_3.buy_price_count as usize * DOC3_7_LEN;
 
-    let ask_price = 0f32 + if sell_price_count > 0 {
-        parse_price(&chunk[index..index + DOC3_7_PRICE_LEN])
+    let ask_price = 0f32 + if data_3_3.sell_price_count > 0 {
+        bcd::to_f32(&chunk[index..index + DOC3_7_PRICE_LEN], 3)
     } else {
         0f32
     };
@@ -88,56 +86,51 @@ fn test_parse_chunk() {
         1, 70, 0, 0, 64, 115, 0, 0, 0, 1, 72, 0, 0, 64, 118, 0, 0, 0, 0, 1, 0, 0, 64, 119,
         0, 0, 0, 0, 5, 167, 13, 10];
 
-    let result = parse_chunk(testcase);
+    let result = parse_6_6_body(testcase);
     println!("parse_chunk: {:?}", result)
 }
 
-fn parse_time(chunk: &[u8]) -> usize {
-    bcd::to_usize(&chunk)
+#[derive(Debug, PartialEq)]
+struct Data3d3 {
+    have_deal_price: bool,
+    buy_price_count: u8,
+    sell_price_count: u8,
+    have_best_5: bool,
 }
 
-#[test]
-fn test_parse_time() {
-    assert_eq!(parse_time(&[0x23, 0x59, 0x59, 0x51, 0x01, 0x15]), 235959510115);
-}
-
-fn parse_price(chunk: &[u8]) -> f32 {
-    bcd::to_f32(chunk, 3)
-}
-
-#[test]
-fn test_parse_price() {
-    assert_eq!(parse_price(&[0x01, 0x00, 0x0, 0x0, 0x0]), 10000f32);
-    assert_eq!(parse_price(&[0x01, 0x11, 0x11, 0x11, 0x11]), 11111.1111);
-    assert_eq!(parse_price(&[0x01, 0x01, 0x90, 0x01, 0x00]), 10190.01);
-    assert_eq!(parse_price(&[0x00, 0x00, 0x01, 0x00, 0x01]), 1.0001);
-}
-
-fn parse_amount(chunk: &[u8]) -> usize {
-    bcd::to_usize(chunk)
-}
-
-#[test]
-fn test_parse_amount() {
-    assert_eq!(parse_amount(&[0x00, 0x00, 0x00, 0x10]), 10);
-    assert_eq!(parse_amount(&[0x00, 0x00, 0x11, 0x10]), 1110);
-    assert_eq!(parse_amount(&[0x00, 0x90, 0x11, 0x10]), 901110);
-    assert_eq!(parse_amount(&[0x00, 0x01, 0x00, 0x01]), 10001);
-}
-
-fn parse_3_3(v: u8) -> (bool, u8, u8, bool) {
-    let have_deal_price = (v >> 7) & 1 == 1;
-    let buy_price_count = (v >> 4) & 0b111;
-    let sell_price_count = (v >> 1) & 0b111;
-    let have_best_5 = v & 1 == 1;
-
-    (have_deal_price, buy_price_count, sell_price_count, have_best_5)
+fn parse_3_3(v: u8) -> Data3d3 {
+    Data3d3 {
+        have_deal_price: (v >> 7) & 1 == 1,
+        buy_price_count: (v >> 4) & 0b111,
+        sell_price_count: (v >> 1) & 0b111,
+        have_best_5: v & 1 == 1,
+    }
 }
 
 #[test]
 fn test_parse_3_3() {
-    assert_eq!(parse_3_3(0b10000001), (true, 0, 0, true));
-    assert_eq!(parse_3_3(0b10010001), (true, 1, 0, true));
-    assert_eq!(parse_3_3(0b11011011), (true, 5, 5, true));
-    assert_eq!(parse_3_3(0b10010101), (true, 1, 2, true));
+    assert_eq!(parse_3_3(0b10000001), Data3d3 {
+        have_deal_price: true,
+        buy_price_count: 0,
+        sell_price_count: 0,
+        have_best_5: true,
+    });
+    assert_eq!(parse_3_3(0b10010001), Data3d3 {
+        have_deal_price: true,
+        buy_price_count: 1,
+        sell_price_count: 0,
+        have_best_5: true,
+    });
+    assert_eq!(parse_3_3(0b11011011), Data3d3 {
+        have_deal_price: true,
+        buy_price_count: 5,
+        sell_price_count: 5,
+        have_best_5: true,
+    });
+    assert_eq!(parse_3_3(0b00010101), Data3d3 {
+        have_deal_price: false,
+        buy_price_count: 1,
+        sell_price_count: 2,
+        have_best_5: true,
+    });
 }
